@@ -7,7 +7,22 @@
 # 渲染半透明物体
 渲染半透明物体的时候需要开启TranseParent 俗称记得切换一下渲染队列
 同时部分特殊材质，比如说能量护盾、玻璃、晶体（钻石这种） 需要同时渲染两次物体
-先渲染背面，然渲染正面 
+先渲染背面，然渲染正面
+部分渲染对象需要关闭阴影
+
+Time函数
+运用Time函数可以获取一个随时间增长的float值
+配合Fract（截取小数部分)方法就可以获得一个N字函数 获得闪烁的效果
+
+
+lerp插值
+这个用的也蛮多的，三个通道XY和Alpha通道
+功能是用来融合，
+传入了两个值，X的大小在图中占的权重为1-Alpha
+Y的权重大小为Alpha
+当Alpha为0的时候，X值就占了一整个图像，Alpha为1时，Y值占了一整块图像
+这个Alpha的可操作空间就比较大了，他可以用来调整Y值得范围，比如说用来调整燃烧得是时候，你物体本体和燃烧火星的占比
+
 
 dot 点乘
 几何意义：两个向量夹角的余弦值
@@ -30,6 +45,17 @@ UV采样就是在一张0-1的范围贴图范围上查找数组
 
 常用效果 
 
+# 后处理效果
+这个是unity里面的PostProcessing插件
+可以很快提升画面质感与效果
+具体使用方法是新建一个Layer名为PostProcessing，位列最后。选中Main Camera，修改摄像机的Layer名为PostProcessing，新建PostProcess Layer以下简称Post L和 PostProcess Volume以下简称Post V
+Post L里 Trigger选项点击new，或者选中你的摄像机对象  Post V里Profile选项使用刚刚新建的相机
+在Post V里面选择Add effect可以进行选项 一般选择的有Bloom 选项 主要勾选 Intensity 和Threshold选项
+还有Color Grading选项 一般勾选mode 的High Definition Range 以及Tonemapping的Mode选项 选择 ACES的选项
+
+
+
+
 # 边缘光：菲涅尔效果
 <img width="1428" height="678" alt="Edge_Light" src="https://github.com/user-attachments/assets/2cb74df5-9e3e-458a-88ba-c97a1ab4e0b2" />
 原理：以视角位于正方形上方，以垂直视角观察一个平面为例：
@@ -48,6 +74,10 @@ World Normal 和View Direction需要在同一个坐标空间内才能进行点�
 
 
 # 流光效果
+流光效果的核心是控制物体表面顶点对noise贴图进行采样
+通常使用World Position 减去 物体中心点
+
+
 
 
 # UV扰动
@@ -88,9 +118,60 @@ uv + noise * noise大部分平静，局部突变
 V分量也是一样的
 UV结合的话就是拿调整好的UV值相乘就行了 搞定
 
- 
+
+
+# 调整物体整体外形
+以平面为例，使用clip方法来进行物体表面剔除
+原理:通过调整物体的灰度值，来进行物体阈值以下灰度的裁切，一般都用0，比较好用
+将想要裁切的部分控制在0以下就行
+<img width="1110" height="663" alt="Noise And Gradient" src="https://github.com/user-attachments/assets/99184d09-ae84-42a8-b6e8-dc40faa9f939" />
+<img width="2142" height="1242" alt="Clip_Shape" src="https://github.com/user-attachments/assets/a52e96b4-e005-436d-bd60-a53ecfe65fbb" />
+由于该部分比较简单，所以图里增加了一部分noise扰动外形的部分,可以无视，途中GrandentEnd为之前的边缘获取方法，获取的是UV的V方向的值，即从下往上黑到白的渐变
+具体的方法就是在外部制作一张你想要的外形的贴图，然后导入进来，使用他的UV坐标进行一定的四则运算，最后为了防止数值超出[0,1]的范围也被裁剪掉了，需要进行clamp处理,最后使用clip方法进行裁切
+如果想要在图上做出扰动的质感的，可以在使用noise贴图与预想裁切外形图形UV相加
+而物体的边缘也可以使用之前的#获取物体边缘方法 融合发现贴图实现对物体边缘的处理
+
+
+# 多层次效果
+原理：这个多层次效果通过修改传入贴图rgb的g分量（高度World.Pos.y）来控制目标高度上的纹理来实现多层次的效果，
+本质上使用UV坐标or世界空间高度作为mask，在不同高度区间混合不同纹理/效果，类似于地形着色器里面的高度图，等高线可以用这个方法制作出来
+也就是这一句话能说清楚的，可以使用
+你想增加的效果以及对应修改的位置与接出来的G分量相加，就会有一个高层次的效果
+<img width="2037" height="1364" alt="More_effect" src="https://github.com/user-attachments/assets/1cdfc5fe-0dc4-4014-b937-7d6c4e5fb3c9" />
+
+
+
+
+
+
+
+
   
 # 溶解算法
+这个常常用于火焰或者燃烧的特效
+溶解算法要配合灰度图进行剔除，这里是灰度图剔除
+<img width="2046" height="888" alt="Get_Gradiant" src="https://github.com/user-attachments/assets/5e9621b9-6982-4a5d-818b-18d958d0289f" />
+原理：还是使用0-1代表的黑白渐变图来讲述，咱们用一张Ramp灰度渐变图。原始图像一般最大值可以超过0，最小小于0的数据，此时拿去减一个常数。原本接近0的会更接近or比0小 变成黑灰色，大于1的部分因为减的数值太少所以白色还是白色，黑色的面积会随着减少的数增加而值逐渐增加。
+此时使用剔除方法来剔除掉小于0的部分，反映在图像上就是图像被裁切了，小于0的部分会被剔除，反映到图像上还是黑色
+到这一步主体就差不多了，只需要进行细节的处理
+然后是正儿八经的溶解算法
+<img width="1664" height="564" alt="Noise_Map" src="https://github.com/user-attachments/assets/9af92e38-22ba-492f-8990-191da31ad1a3" />
+获取了可以剔除边缘的算法后需要给他进行扰动，扰动的同时因为不想让图像变得特别混乱，所以只限于对边缘进行扰动，这时候就用上了Distance函数来选择到边缘，具体获取边缘的位置，然后对边缘进行处理，当然，使用Smoothstep也可以进行处理
+float edge = smoothstep(dissolve, dissolve + edgeWidth, noiseValue);
+使用smoothstep性能会更好一些，但是distance效果更加可控
+<img width="2142" height="444" alt="Disslove_Edge" src="https://github.com/user-attachments/assets/fac7d89f-16b9-4c17-b7f6-451e28f428d7" />
+具体表现为除法来限制范围，以及赋予渐变贴图让他有颜色的变化
+<img width="2097" height="993" alt="Disslove_Clip" src="https://github.com/user-attachments/assets/72f1c2d1-711e-46e2-a750-0430baa5770c" />
+比较重要的是使用这个lerp插值来动态调整原图和你溶解特效的一个比值
+Lerp方法的一端是原始 albedo 颜色
+另一端是边缘 Ramp 采样颜色
+权重是边缘 mask 值 
+
+
+
+
+
+
 
 # 高光点获取（星星闪烁效果）
 <img width="1436" height="642" alt="Get_Hightlight" src="https://github.com/user-attachments/assets/6a2ccc23-e173-48c2-86b7-c619ed1c356e" />
